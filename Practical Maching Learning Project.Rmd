@@ -1,0 +1,63 @@
+---
+title: 'Practical Machine Learning Project: Activity Prediction'
+author: "Tianyuan Zhang"
+date: "Sunday, August 24, 2014"
+output: html_document
+---
+
+### Summary ###
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+
+### Data Processing and Data Split ###
+
+Download data from specified links and put them in the working directionary. Both traning and testing data have 160 variables. Some variables are qualitatively unrelated to the activities, such as record index, new_window, and num_window. Many variables have substantial missing values that they can not be reliably used as predictors, such as the moments (kurtosis, skewness data). Load the data in R, and remove the variables from both data sets. The number of predictor candidates is reduced to 56. 
+```{r}
+PreProcTesting<-read.csv("pml-testing.csv")
+PreProcTraining<-read.csv("pml-training.csv")
+MainTraining<-PreProcTraining[,c(-1,-5:-7,-12:-36,-50:-59,-69:-83,-87:-101,-103:-112,-125:-139,-141:-150)]
+MainTesting<-PreProcTesting[,c(-1,-5:-7,-12:-36,-50:-59,-69:-83,-87:-101,-103:-112,-125:-139,-141:-150)]
+dim(MainTraining)
+dim(MainTesting)
+```
+To estimate out-of-sample error, split the main training set into a training set (70%) and a testing set( 30%. 
+```{r}
+library(caret)
+inTrain<-createDataPartition(y=MainTraining$classe,p=0.7,list=FALSE)
+training<-MainTraining[inTrain,]
+testing<-MainTraining[-inTrain,]
+dim(training)
+dim(testing)
+```
+Now we have 13737 observations in the model training set, and 5885 observations in the model testing set.
+
+### Model Training ###
+
+I decide to use random forest agorithm in the randomForest package to train the model. The agorithmn is typically viewed as one of the more accurate common agorithmns. The randomForest package, unlike rf method in caret package, does not deploy optimization that does not necessarily improve acuracy. After testing, it is the case in my data. What is more, the randomForest package automatically resamples training data to conduct cross validation.
+```{r,cache=TRUE}
+library(randomForest)
+modFit<-randomForest(classe~.,training)
+modFit
+confusionMatrix(predict(modFit,testing),testing$classe)
+```
+The trained model has 99.81% accuracy when tested on the testing set, that is only 0.19% out-of-sample error rate. The OOB estimate of error rate also is as low as 0.23%. 
+
+### Activity Predication in the Main Testing Data ###
+
+Use the fitted model to predict the activity in the main testing data. The result is shown below. 
+```{r,cache=TRUE}
+answers<-predict(modFit,MainTesting)
+answers
+```
+Then create the text file for prediction submission. 
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
